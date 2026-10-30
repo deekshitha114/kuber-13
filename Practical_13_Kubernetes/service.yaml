@@ -1,0 +1,36 @@
+# =============================================================================
+# service.yaml — Student Result Prediction API (Practical-13)
+# =============================================================================
+# Kubernetes Service manifest — NodePort type.
+#
+# Provides a stable network endpoint in front of the Pods selected by the
+# label  app: student-result-prediction.
+#
+# Traffic flow:
+#   External client
+#       → Minikube NodePort (auto-assigned, typically 30000-32767)
+#       → Service port 80
+#       → Target port 8000 inside any ready Pod
+#
+# To obtain the local URL on Minikube:
+#   minikube service student-result-prediction-service --url
+# =============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: student-result-prediction-service
+  labels:
+    app: student-result-prediction
+    practical: "13"
+spec:
+  type: NodePort
+  selector:
+    # Routes traffic to Pods with this label — matches the Deployment template.
+    app: student-result-prediction
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80           # Port exposed inside the cluster
+      targetPort: 8000   # Port the FastAPI container listens on
+      # nodePort:        # Omit to let Kubernetes auto-assign (30000-32767)
