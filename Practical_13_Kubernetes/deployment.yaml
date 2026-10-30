@@ -1,0 +1,107 @@
+# =============================================================================
+# deployment.yaml — Student Result Prediction API (Practical-13)
+# =============================================================================
+# Kubernetes Deployment manifest.
+#
+# Prerequisites:
+#   • Replace <github-username> with your actual GitHub username.
+#   • Replace <IMAGE_TAG> with the tested GHCR image tag (e.g., practical-11,
+#     sha-<commit>, or latest).
+#   • If the GHCR package is PRIVATE, ensure the ghcr-secret has been created:
+#       kubectl create secret docker-registry ghcr-secret \
+#         --docker-server=ghcr.io \
+#         --docker-username=<github-username> \
+#         --docker-password=<REGISTRY_READ_TOKEN> \
+#         --docker-email=<email>
+#     And patched to the default ServiceAccount:
+#       kubectl patch serviceaccount default \
+#         -p '{"imagePullSecrets":[{"name":"ghcr-secret"}]}'
+#
+# Security:
+#   NEVER place a real GitHub token inside this file or commit it to source
+#   control. Always use a Kubernetes Secret for registry credentials.
+# =============================================================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: student-result-prediction
+  labels:
+    app: student-result-prediction
+    version: "1.0.0"
+    practical: "13"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: student-result-prediction
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # No Pods removed before a replacement is ready
+      maxSurge: 1         # At most one extra Pod created during an update
+  template:
+    metadata:
+      labels:
+        app: student-result-prediction
+        version: "1.0.0"
+    spec:
+      # -----------------------------------------------------------------------
+      # If the GHCR package is PUBLIC, remove the imagePullSecrets section.
+      # If the GHCR package is PRIVATE, uncomment the lines below.
+      # -----------------------------------------------------------------------
+      # imagePullSecrets:
+      #   - name: ghcr-secret
+
+      containers:
+        - name: student-result-api
+          # -------------------------------------------------------------------
+          # Replace <github-username> and <IMAGE_TAG> before applying.
+          # Example: ghcr.io/deekshitha/student-result-prediction:practical-11
+          # -------------------------------------------------------------------
+          image: ghcr.io/<github-username>/student-result-prediction:<IMAGE_TAG>
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+              name: http
+
+          # -------------------------------------------------------------------
+          # Readiness Probe — gates traffic to this Pod.
+          # Reuses the /health endpoint from Practical-11.
+          # Pod receives traffic only when /health returns HTTP 200.
+          # -------------------------------------------------------------------
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10   # Allow uvicorn + model-load time
+            periodSeconds: 10         # Check every 10 s
+            timeoutSeconds: 3         # Fail if no response in 3 s
+            failureThreshold: 3       # Three consecutive failures → not ready
+
+          # -------------------------------------------------------------------
+          # Liveness Probe — restarts the container if it becomes unhealthy.
+          # Reuses the same /health endpoint.
+          # -------------------------------------------------------------------
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30   # Extra time before first liveness check
+            periodSeconds: 20         # Check every 20 s
+            timeoutSeconds: 3
+            failureThreshold: 3       # Three consecutive failures → restart
+
+          # -------------------------------------------------------------------
+          # Resource requests and limits (classroom defaults).
+          # Adjust if the model requires more CPU or memory.
+          # -------------------------------------------------------------------
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
